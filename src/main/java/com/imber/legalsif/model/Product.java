@@ -28,6 +28,7 @@ public class Product {
   private Double price;
   private String image;
   private String description;
+  private String mainImagePublicId;
   private Boolean soldOut = false;
   private Boolean isNew = false;
 

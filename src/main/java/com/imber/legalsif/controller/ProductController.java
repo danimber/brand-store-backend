@@ -68,4 +68,10 @@ public class ProductController {
     cloudinaryService.deleteImage(imageId);
     return ResponseEntity.ok(Map.of("deleted", true));
   }
+
+  @DeleteMapping("/{id}/main-image")
+  public ResponseEntity<Map<String, Boolean>> deleteMainImage(@PathVariable Long id) {
+    cloudinaryService.deleteMainImage(id);
+    return ResponseEntity.ok(Map.of("deleted", true));
+  }
 }

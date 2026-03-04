@@ -21,4 +21,6 @@ public class ProductImage {
   private String url;
   private String fileName;
   private Integer sortOrder;
+
+  private String publicId;
 }

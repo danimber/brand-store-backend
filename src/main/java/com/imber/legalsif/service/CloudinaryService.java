@@ -30,21 +30,26 @@ public class CloudinaryService {
   ) {
     this.cloudinary = new Cloudinary(ObjectUtils.asMap(
         "cloud_name", cloudName,
-        "api_key",    apiKey,
+        "api_key", apiKey,
         "api_secret", apiSecret
     ));
     this.productRepository = productRepository;
     this.productImageRepository = productImageRepository;
   }
 
-  public String uploadImage(MultipartFile file) throws IOException {
+  public Map<String, String> uploadImage(MultipartFile file) throws IOException {
     Map result = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
-    return (String) result.get("secure_url");
+    return Map.of(
+        "url", (String) result.get("secure_url"),
+        "publicId", (String) result.get("public_id")
+    );
   }
 
   public Product createProduct(String name, String category, Double price,
                                String description, Boolean soldOut, Boolean isNew,
                                MultipartFile mainImage, List<MultipartFile> images) throws IOException {
+    Map<String, String> main = uploadImage(mainImage);
+
     Product product = new Product();
     product.setName(name);
     product.setCategory(category);
@@ -52,16 +57,18 @@ public class CloudinaryService {
     product.setDescription(description);
     product.setSoldOut(soldOut);
     product.setIsNew(isNew);
-    product.setImage(uploadImage(mainImage));
+    product.setImage(main.get("url"));
+    product.setMainImagePublicId(main.get("publicId"));
     productRepository.save(product);
 
     if (images != null) {
       for (int i = 0; i < images.size(); i++) {
+        Map<String, String> uploaded = uploadImage(images.get(i));
         ProductImage pi = new ProductImage();
         pi.setProduct(product);
-        String url = uploadImage(images.get(i));
-        pi.setUrl(url);
-        pi.setFileName(url);
+        pi.setUrl(uploaded.get("url"));
+        pi.setFileName(uploaded.get("url"));
+        pi.setPublicId(uploaded.get("publicId"));
         pi.setSortOrder(i);
         productImageRepository.save(pi);
       }
@@ -76,26 +83,35 @@ public class CloudinaryService {
     Product product = productRepository.findById(id)
         .orElseThrow(() -> new RuntimeException("Product not found"));
 
-    if (name != null)        product.setName(name);
-    if (category != null)    product.setCategory(category);
-    if (price != null)       product.setPrice(price);
+    if (name != null) product.setName(name);
+    if (category != null) product.setCategory(category);
+    if (price != null) product.setPrice(price);
     if (description != null) product.setDescription(description);
-    if (soldOut != null)     product.setSoldOut(soldOut);
-    if (isNew != null)       product.setIsNew(isNew);
+    if (soldOut != null) product.setSoldOut(soldOut);
+    if (isNew != null) product.setIsNew(isNew);
 
     if (mainImage != null && !mainImage.isEmpty()) {
-      product.setImage(uploadImage(mainImage));
+      if (product.getMainImagePublicId() != null) {
+        try {
+          cloudinary.uploader().destroy(product.getMainImagePublicId(), ObjectUtils.emptyMap());
+        } catch (IOException ignored) {
+        }
+      }
+      Map<String, String> main = uploadImage(mainImage);
+      product.setImage(main.get("url"));
+      product.setMainImagePublicId(main.get("publicId"));
     }
 
     productRepository.save(product);
 
     if (images != null) {
       for (int i = 0; i < images.size(); i++) {
+        Map<String, String> uploaded = uploadImage(images.get(i));
         ProductImage pi = new ProductImage();
         pi.setProduct(product);
-        String url = uploadImage(images.get(i));
-        pi.setUrl(url);
-        pi.setFileName(url);
+        pi.setUrl(uploaded.get("url"));
+        pi.setFileName(uploaded.get("url"));
+        pi.setPublicId(uploaded.get("publicId"));
         pi.setSortOrder(i);
         productImageRepository.save(pi);
       }
@@ -107,6 +123,46 @@ public class CloudinaryService {
   public void deleteImage(Long imageId) {
     ProductImage image = productImageRepository.findById(imageId)
         .orElseThrow(() -> new RuntimeException("Image not found"));
+    try {
+      if (image.getPublicId() != null) {
+        cloudinary.uploader().destroy(image.getPublicId(), ObjectUtils.emptyMap());
+      }
+    } catch (IOException ignored) {
+    }
     productImageRepository.delete(image);
+  }
+
+  public void deleteProduct(Long id) {
+    Product product = productRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Product not found"));
+    for (ProductImage image : product.getImages()) {
+      try {
+        if (image.getPublicId() != null) {
+          cloudinary.uploader().destroy(image.getPublicId(), ObjectUtils.emptyMap());
+        }
+      } catch (IOException ignored) {
+      }
+    }
+    try {
+      if (product.getMainImagePublicId() != null) {
+        cloudinary.uploader().destroy(product.getMainImagePublicId(), ObjectUtils.emptyMap());
+      }
+    } catch (IOException ignored) {
+    }
+    productImageRepository.deleteAll(product.getImages());
+    productRepository.delete(product);
+  }
+
+  public void deleteMainImage(Long id) {
+    Product product = productRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Product not found"));
+    try {
+      if (product.getMainImagePublicId() != null) {
+        cloudinary.uploader().destroy(product.getMainImagePublicId(), ObjectUtils.emptyMap());
+      }
+    } catch (IOException ignored) {}
+    product.setImage(null);
+    product.setMainImagePublicId(null);
+    productRepository.save(product);
   }
 }
