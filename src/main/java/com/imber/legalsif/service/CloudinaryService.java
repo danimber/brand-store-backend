@@ -99,7 +99,11 @@ public class CloudinaryService {
             if (img.getPublicId() != null) {
               cloudinary.uploader().destroy(img.getPublicId(), ObjectUtils.emptyMap());
             }
+
+            product.getImages().removeIf(existingImg -> existingImg.getId().equals(imageId));
+
             productImageRepository.delete(img);
+
           } catch (IOException e) {
             System.err.println("Cloudinary destroy error: " + e.getMessage());
           }
