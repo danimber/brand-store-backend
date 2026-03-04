@@ -79,7 +79,9 @@ public class CloudinaryService {
 
   public Product updateProduct(Long id, String name, String category, Double price,
                                String description, Boolean soldOut, Boolean isNew,
-                               MultipartFile mainImage, List<MultipartFile> images) throws IOException {
+                               MultipartFile mainImage, List<MultipartFile> images,
+                               List<Long> deleteImageIds) throws IOException {
+
     Product product = productRepository.findById(id)
         .orElseThrow(() -> new RuntimeException("Product not found"));
 
@@ -90,12 +92,26 @@ public class CloudinaryService {
     if (soldOut != null) product.setSoldOut(soldOut);
     if (isNew != null) product.setIsNew(isNew);
 
+    if (deleteImageIds != null && !deleteImageIds.isEmpty()) {
+      for (Long imageId : deleteImageIds) {
+        productImageRepository.findById(imageId).ifPresent(img -> {
+          try {
+            if (img.getPublicId() != null) {
+              cloudinary.uploader().destroy(img.getPublicId(), ObjectUtils.emptyMap());
+            }
+            productImageRepository.delete(img);
+          } catch (IOException e) {
+            System.err.println("Cloudinary destroy error: " + e.getMessage());
+          }
+        });
+      }
+    }
+
     if (mainImage != null && !mainImage.isEmpty()) {
       if (product.getMainImagePublicId() != null) {
         try {
           cloudinary.uploader().destroy(product.getMainImagePublicId(), ObjectUtils.emptyMap());
-        } catch (IOException ignored) {
-        }
+        } catch (IOException ignored) {}
       }
       Map<String, String> main = uploadImage(mainImage);
       product.setImage(main.get("url"));
@@ -105,15 +121,19 @@ public class CloudinaryService {
     productRepository.save(product);
 
     if (images != null) {
-      for (int i = 0; i < images.size(); i++) {
-        Map<String, String> uploaded = uploadImage(images.get(i));
-        ProductImage pi = new ProductImage();
-        pi.setProduct(product);
-        pi.setUrl(uploaded.get("url"));
-        pi.setFileName(uploaded.get("url"));
-        pi.setPublicId(uploaded.get("publicId"));
-        pi.setSortOrder(i);
-        productImageRepository.save(pi);
+      int currentOrder = product.getImages() != null ? product.getImages().size() : 0;
+
+      for (MultipartFile file : images) {
+        if (!file.isEmpty()) {
+          Map<String, String> uploaded = uploadImage(file);
+          ProductImage pi = new ProductImage();
+          pi.setProduct(product);
+          pi.setUrl(uploaded.get("url"));
+          pi.setFileName(file.getOriginalFilename());
+          pi.setPublicId(uploaded.get("publicId"));
+          pi.setSortOrder(currentOrder++);
+          productImageRepository.save(pi);
+        }
       }
     }
 

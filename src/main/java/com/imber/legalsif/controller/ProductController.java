@@ -56,10 +56,11 @@ public class ProductController {
       @RequestParam(required = false) Boolean soldOut,
       @RequestParam(required = false) Boolean isNew,
       @RequestParam(required = false) MultipartFile mainImage,
-      @RequestParam(required = false) List<MultipartFile> images
+      @RequestParam(required = false) List<MultipartFile> images,
+      @RequestParam(required = false) List<Long> deleteImageIds
   ) throws IOException {
     return ResponseEntity.ok(cloudinaryService.updateProduct(
-        id, name, category, price, description, soldOut, isNew, mainImage, images
+        id, name, category, price, description, soldOut, isNew, mainImage, images, deleteImageIds
     ));
   }
 
