@@ -29,7 +29,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/products")
-@CrossOrigin(origins = "https://a1c7-45-130-247-192.ngrok-free.app")
 @AllArgsConstructor
 public class ProductController {
 
